@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>马里奥数学跑酷大冒险 🍄 Mario Math Run</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body {
+      background: #5c94fc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 4px solid #ffffff;
+      touch-action: none;
+    }
+    canvas { background: #5c94fc; display: block; }
+    
+    /* HUD 抬头显示 */
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: bold;
+      color: #ffffff;
+      text-shadow: 2px 2px 0px #000;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .hud-box {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 5px 12px;
+      border-radius: 16px;
+      border: 2px solid #facc15;
+    }
+
+    /* 手机端触控按键 */
+    #controls {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 800px;
+      padding: 10px 20px;
+      margin-top: 8px;
+    }
+    .btn-group { display: flex; gap: 10px; }
+    .btn {
+      width: 60px;
+      height: 60px;
+      background: #e11d48;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      font-size: 20px;
+      font-weight: bold;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+    .btn:active { transform: scale(0.92); background: #be123c; }
+
+    /* UI 界面遮罩 */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 10;
+      color: white;
+    }
+    .overlay h1 { font-size: 30px; color: #facc15; margin-bottom: 10px; text-shadow: 2px 2px #000; }
+    .overlay p { font-size: 15px; color: #e2e8f0; margin-bottom: 20px; line-height: 1.6; }
+    .start-btn {
+      padding: 12px 32px;
+      font-size: 18px;
+      font-weight: bold;
+      background: #22c55e;
+      color: white;
+      border: 3px solid #ffffff;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(34,197,94,0.4);
+    }
+    .start-btn:active { transform: scale(0.95); background: #16a34a; }
+
+    /* 数学答题弹窗 */
+    #quiz-modal {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 15px;
+      z-index: 20;
+    }
+    .quiz-card {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      border: 4px solid #facc15;
+    }
+    .quiz-title { font-size: 15px; font-weight: bold; color: #dc2626; margin-bottom: 8px; }
+    .quiz-q { font-size: 16px; font-weight: bold; color: #1e293b; margin-bottom: 15px; text-align: left; line-height: 1.5; }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+    .opt-btn {
+      background: #f8fafc;
+      border: 2px solid #cbd5e0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 14px;
+      color: #334155;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .opt-btn:active { background: #fef08a; border-color: #eab308; }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="800" height="450"></canvas>
+  
+  <!-- HUD 界面 -->
+  <div id="hud">
+    <div class="hud-box" id="lives-display">❤️ x 3</div>
+    <div class="hud-box" id="coins-display">🪙 x 0</div>
+    <div class="hud-box" id="math-display">❓ 答对: 0/15</div>
+    <div class="hud-box" id="score-display">得分: 0</div>
+  </div>
+
+  <!-- 开始界面 -->
+  <div id="start-screen" class="overlay">
+    <h1>🍄 马里奥数学跑酷大冒险 🎮</h1>
+    <p>操控马里奥顶破 15 个问号宝箱 ❓ 解答六年级数学题！<br>收集金币 🪙、避开板栗仔 👾 与尖刺 ⚠️！<br>冲向终点城堡与旗帜 🚩！</p>
+    <button class="start-btn" id="btn-start-game">开始闯关 🚀</button>
+  </div>
+
+  <!-- 数学答题弹窗 -->
+  <div id="quiz-modal">
+    <div class="quiz-card">
+      <div class="quiz-title" id="quiz-title">❓ 问号宝箱题目 (1/15)</div>
+      <div class="quiz-q" id="quiz-question">题目加载中...</div>
+      <div class="quiz-options" id="quiz-options"></div>
+    </div>
+  </div>
+
+  <!-- 失败界面 -->
+  <div id="gameover-screen" class="overlay" style="display: none;">
+    <h1>GAME OVER 😿</h1>
+    <p id="final-score">最终得分: 0</p>
+    <button class="start-btn" id="btn-restart-gameover">重新挑战 🔄</button>
+  </div>
+
+  <!-- 胜利界面 -->
+  <div id="win-screen" class="overlay" style="display: none;">
+    <h1>STAGE CLEAR! 🎉✨</h1>
+    <p id="win-score">恭喜你成功通关！</p>
+    <button class="start-btn" id="btn-restart-win">再玩一次 🌟</button>
+  </div>
+</div>
+
+<!-- 移动端触控按键 -->
+<div id="controls">
+  <div class="btn-group">
+    <div class="btn" id="btn-left">◀</div>
+    <div class="btn" id="btn-right">▶</div>
+  </div>
+  <div class="btn-group">
+    <div class="btn" id="btn-jump" style="width: 70px; border-radius: 35px;">跳跃</div>
+  </div>
+</div>
+
+<script>
+// --- 六年级数学总复习（单元一至七）15道核心题库 ---
+const quizData = [
+  { q: "1. 将 1.25 百万 改写为整数。", options: ["A. 12 500", "B. 125 000", "C. 1 250 000", "D. 12 500 000"], ans: 2 },
+  { q: "2. 下列哪一组数字全部都是质数（Nombor Perdana）？", options: ["A. 2, 3, 5, 7, 11", "B. 1, 3, 5, 7, 9", "C. 2, 4, 6, 8, 10", "D. 3, 5, 7, 9, 11"], ans: 0 },
+  { q: "3. 计算 ¾ 百万 + 250 000 的值。", options: ["A. 1 000 000", "B. 750 000", "C. 500 000", "D. 1 250 000"], ans: 0 },
+  { q: "4. 计算 2½ × ⅘ 的积。", options: ["A. 1½", "B. 2", "C. 2⅕", "D. 1"], ans: 1 },
+  { q: "5. 一件衣服原价 RM 80，商家给予 20% 折扣。折后售价是多少？", options: ["A. RM 16", "B. RM 60", "C. RM 64", "D. RM 72"], ans: 2 },
+  { q: "6. 商贩以 RM 120 成本购入商品，并以 RM 150 卖出。计算商贩获得的盈利。", options: ["A. RM 30", "B. RM 50", "C. RM 270", "D. RM 180"], ans: 0 },
+  { q: "7. 在银行存入 RM 2 000，年利率为 3%。一年后可获得多少年利息？", options: ["A. RM 30", "B. RM 60", "C. RM 90", "D. RM 600"], ans: 1 },
+  { q: "8. 将 24 小时计时法的 18:45 转换为 12 小时计时法。", options: ["A. 6:45 a.m.", "B. 8:45 p.m.", "C. 6:45 p.m.", "D. 18:45 p.m."], ans: 2 },
+  { q: "9. 吉隆坡（时区 UTC+8）时间是晚上 8:00，伦敦（UTC+0）此时的时间是多少？", options: ["A. 下午 12:00（中午）", "B. 凌晨 4:00", "C. 上午 8:00", "D. 晚上 8:00"], ans: 0 },
+  { q: "10. 把 2.45 kg 转换为以 g 为单位的值。", options: ["A. 245 g", "B. 2 450 g", "C. 24 500 g", "D. 245 000 g"], ans: 1 },
+  { q: "11. 果汁原有 1.5 L，倒出 750 ml 后，还剩下多少 L 果汁？", options: ["A. 0.75 L", "B. 0.5 L", "C. 1.25 L", "D. 0.85 L"], ans: 0 },
+  { q: "12. 一个正六边形（Heksagon Sekata）有多少条对称轴（Paksi Simetri）？", options: ["A. 4 条", "B. 5 条", "C. 6 条", "D. 8 条"], ans: 2 },
+  { q: "13. 计算边长为 6 cm 的正方体体积。", options: ["A. 36 cm³", "B. 216 cm³", "C. 144 cm³", "D. 24 cm³"], ans: 1 },
+  { q: "14. 点 P 的坐标是 (3, 5)。这代表什么含义？", options: ["A. 距离 y 轴 3 个单位，距离 x 轴 5 个单位", "B. 距离 y 轴 5 个单位，距离 x 轴 3 个单位", "C. 距离原点 8 个单位", "D. 距离 x 轴 3 个单位，距离 y 轴 5 个单位"], ans: 0 },
+  { q: "15. 12 个红苹果和 18 个青苹果。红苹果与青苹果数量的最简比是多少？", options: ["A. 12 : 18", "B. 2 : 3", "C. 3 : 2", "D. 6 : 9"], ans: 1 }
+];
+
+// --- Web Audio 经典复古音效合成 ---
+let audioCtx = null;
+function playSound(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if (type === 'jump') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(600, now + 0.12);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now); osc.stop(now + 0.12);
+    } else if (type === 'coin') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(987, now);
+      osc.frequency.setValueAtTime(1318, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+      osc.start(now); osc.stop(now + 0.25);
+    } else if (type === 'powerup') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(330, now);
+      osc.frequency.setValueAtTime(392, now + 0.08);
+      osc.frequency.setValueAtTime(659, now + 0.16);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+      osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'hurt') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.linearRampToValueAtTime(60, now + 0.2);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'win') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(523, now);
+      osc.frequency.setValueAtTime(659, now + 0.1);
+      osc.frequency.setValueAtTime(783, now + 0.2);
+      osc.frequency.setValueAtTime(1046, now + 0.3);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+      osc.start(now); osc.stop(now + 0.6);
+    }
+  } catch(e) {}
+}
+
+// --- 游戏设置与逻辑引擎 ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const keys = { left: false, right: false, jump: false };
+let gameState = 'START'; // START, PLAYING, QUIZ, GAMEOVER, WIN
+let cameraX = 0;
+let solvedMathCount = 0;
+let currentBlockIndex = -1;
+
+function setupBtn(id, handler) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.onclick = handler;
+  el.ontouchstart = (e) => { e.preventDefault(); handler(); };
+}
+setupBtn('btn-start-game', startGame);
+setupBtn('btn-restart-gameover', restartGame);
+setupBtn('btn-restart-win', restartGame);
+
+// 键盘控制
+window.addEventListener('keydown', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+  if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
+    if (!keys.jump) mario.jump();
+    keys.jump = true;
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+  if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') keys.jump = false;
+});
+
+function bindTouch(id, keyName) {
+  const btn = document.getElementById(id);
+  const start = (e) => { e.preventDefault(); if (keyName === 'jump' && !keys.jump) mario.jump(); keys[keyName] = true; };
+  const end = (e) => { e.preventDefault(); keys[keyName] = false; };
+  btn.addEventListener('touchstart', start, {passive: false});
+  btn.addEventListener('touchend', end, {passive: false});
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', end);
+}
+bindTouch('btn-left', 'left');
+bindTouch('btn-right', 'right');
+bindTouch('btn-jump', 'jump');
+
+// 马里奥主角对象
+const mario = {
+  x: 50, y: 300, w: 32, h: 42, vx: 0, vy: 0,
+  speed: 4.8, jumpPower: -12.0, gravity: 0.55,
+  grounded: false, lives: 3, coins: 0, score: 0,
+  invulnerableTimer: 0, facingLeft: false,
+
+  reset() {
+    this.x = 50; this.y = 300; this.vx = 0; this.vy = 0;
+    this.lives = 3; this.coins = 0; this.score = 0;
+    this.invulnerableTimer = 0;
+  },
+
+  jump() {
+    if (this.grounded && gameState === 'PLAYING') {
+      this.vy = this.jumpPower;
+      this.grounded = false;
+      playSound('jump');
+    }
+  },
+
+  update() {
+    if (keys.left) { this.vx = -this.speed; this.facingLeft = true; }
+    else if (keys.right) { this.vx = this.speed; this.facingLeft = false; }
+    else { this.vx *= 0.7; }
+
+    this.vy += this.gravity;
+    this.x += this.vx;
+    this.y += this.vy;
+    this.grounded = false;
+
+    // 平台地面碰撞
+    platforms.forEach(p => {
+      if (this.x + this.w > p.x && this.x < p.x + p.w &&
+          this.y + this.h >= p.y && this.y + this.h - this.vy <= p.y + 12) {
+        this.y = p.y - this.h;
+        this.vy = 0;
+        this.grounded = true;
+      }
+    });
+
+    if (this.x < 0) this.x = 0;
+    if (this.y > canvas.height + 100) this.takeDamage(1, true);
+    if (this.invulnerableTimer > 0) this.invulnerableTimer--;
+  },
+
+  takeDamage(amount, fallInPit = false) {
+    if (this.invulnerableTimer > 0) return;
+    this.lives -= amount;
+    this.invulnerableTimer = 60;
+    playSound('hurt');
+
+    if (this.lives <= 0) {
+      endGame(false);
+    } else if (fallInPit) {
+      this.x = Math.max(50, cameraX + 50);
+      this.y = 100;
+      this.vy = 0;
+    }
+  },
+
+  draw() {
+    ctx.save();
+    if (this.invulnerableTimer % 6 > 3) ctx.globalAlpha = 0.4;
+
+    const cx = this.x + this.w / 2;
+    const cy = this.y + this.h / 2;
+
+    ctx.translate(cx, cy);
+    if (this.facingLeft) ctx.scale(-1, 1);
+
+    // 1. 马里奥红帽子
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(0, -12, 12, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(-2, -14, 14, 4); // 帽子前端檐
+
+    // 2. 脸部与胡子
+    ctx.fillStyle = '#fcd34d'; // 皮肤色
+    ctx.beginPath();
+    ctx.arc(0, -4, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#451a03'; // 大胡子与眼睛
+    ctx.fillRect(0, -4, 8, 3);
+    ctx.fillRect(2, -7, 3, 3);
+
+    // 3. 红色上衣
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(-8, 3, 16, 10);
+
+    // 4. 经典蓝色背带裤
+    ctx.fillStyle = '#2563eb';
+    ctx.fillRect(-8, 11, 16, 10);
+    // 黄色纽扣
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(-5, 12, 3, 3);
+    ctx.fillRect(2, 12, 3, 3);
+
+    ctx.restore();
+  }
+};
+
+// 地图数据实体
+let platforms = [], spikes = [], coins = [], hearts = [], enemies = [], questionBlocks = [];
+let goal = { x: 5300, y: 220, w: 40, h: 120 };
+
+function initLevel() {
+  solvedMathCount = 0;
+
+  platforms = [
+    { x: 0, y: 380, w: 900 },
+    { x: 1000, y: 380, w: 800 },
+    { x: 1900, y: 380, w: 800 },
+    { x: 2800, y: 380, w: 800 },
+    { x: 3700, y: 380, w: 800 },
+    { x: 4600, y: 380, w: 900 },
+
+    // 悬空砖块平台
+    { x: 280, y: 270, w: 140 }, { x: 580, y: 210, w: 140 },
+    { x: 1180, y: 270, w: 140 }, { x: 1480, y: 200, w: 140 },
+    { x: 2080, y: 270, w: 140 }, { x: 2380, y: 200, w: 140 },
+    { x: 2980, y: 270, w: 140 }, { x: 3280, y: 200, w: 140 },
+    { x: 3880, y: 270, w: 140 }, { x: 4180, y: 200, w: 140 },
+  ];
+
+  // 15 个马里奥问号宝箱 ❓
+  questionBlocks = [
+    { x: 330, y: 230, id: 0, opened: false },
+    { x: 630, y: 170, id: 1, opened: false },
+    { x: 820, y: 340, id: 2, opened: false },
+    { x: 1230, y: 230, id: 3, opened: false },
+    { x: 1530, y: 160, id: 4, opened: false },
+    { x: 1780, y: 340, id: 5, opened: false },
+    { x: 2130, y: 230, id: 6, opened: false },
+    { x: 2430, y: 160, id: 7, opened: false },
+    { x: 2680, y: 340, id: 8, opened: false },
+    { x: 3030, y: 230, id: 9, opened: false },
+    { x: 3330, y: 160, id: 10, opened: false },
+    { x: 3580, y: 340, id: 11, opened: false },
+    { x: 3930, y: 230, id: 12, opened: false },
+    { x: 4230, y: 160, id: 13, opened: false },
+    { x: 4850, y: 340, id: 14, opened: false },
+  ];
+
+  spikes = [
+    { x: 500, y: 360, w: 60, h: 20 },
+    { x: 1400, y: 360, w: 80, h: 20 },
+    { x: 2300, y: 360, w: 80, h: 20 },
+    { x: 3200, y: 360, w: 80, h: 20 },
+    { x: 4100, y: 360, w: 80, h: 20 },
+  ];
+
+  coins = [];
+  for (let i = 0; i < 30; i++) {
+    coins.push({ x: 200 + i * 160, y: 280 - (i % 3) * 40, collected: false });
+  }
+
+  hearts = [
+    { x: 1100, y: 340, collected: false },
+    { x: 2900, y: 340, collected: false },
+    { x: 4400, y: 340, collected: false }
+  ];
+
+  enemies = [
+    { x: 450, y: 350, w: 32, h: 30, minX: 380, maxX: 520, vx: 1.2 },
+    { x: 1300, y: 350, w: 32, h: 30, minX: 1150, maxX: 1450, vx: 1.5 },
+    { x: 2200, y: 350, w: 32, h: 30, minX: 2050, maxX: 2350, vx: 1.8 },
+    { x: 3100, y: 350, w: 32, h: 30, minX: 2950, maxX: 3250, vx: 2.0 },
+    { x: 4000, y: 350, w: 32, h: 30, minX: 3850, maxX: 4150, vx: 2.2 },
+  ];
+}
+
+// 弹出数学答题窗口
+function triggerQuiz(blockIndex) {
+  gameState = 'QUIZ';
+  currentBlockIndex = blockIndex;
+  const qData = quizData[blockIndex];
+
+  document.getElementById('quiz-title').innerText = `❓ 问号宝箱题目 (${blockIndex + 1}/15)`;
+  document.getElementById('quiz-question').innerText = qData.q;
+
+  const optionsEl = document.getElementById('quiz-options');
+  optionsEl.innerHTML = '';
+
+  qData.options.forEach((optText, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt-btn';
+    btn.innerText = optText;
+    btn.onclick = () => handleAnswer(i);
+    optionsEl.appendChild(btn);
+  });
+
+  document.getElementById('quiz-modal').style.display = 'flex';
+}
+
+function handleAnswer(selectedIndex) {
+  const qData = quizData[currentBlockIndex];
+  document.getElementById('quiz-modal').style.display = 'none';
+
+  questionBlocks[currentBlockIndex].opened = true;
+
+  if (selectedIndex === qData.ans) {
+    playSound('powerup');
+    mario.score += 500;
+    solvedMathCount++;
+    if (mario.lives < 5) mario.lives += 1;
+  } else {
+    playSound('hurt');
+    mario.score = Math.max(0, mario.score - 50);
+    mario.takeDamage(1);
+  }
+
+  updateHUD();
+  if (mario.lives > 0) {
+    gameState = 'PLAYING';
+  }
+}
+
+// 逻辑循环更新
+function update() {
+  if (gameState !== 'PLAYING') return;
+
+  mario.update();
+
+  cameraX += (mario.x - cameraX - 250) * 0.1;
+  if (cameraX < 0) cameraX = 0;
+
+  // 顶触/碰到问号宝箱触发答题
+  questionBlocks.forEach(b => {
+    if (!b.opened && Math.hypot(mario.x + 16 - b.x, mario.y + 20 - b.y) < 28) {
+      triggerQuiz(b.id);
+    }
+  });
+
+  // 金币碰撞
+  coins.forEach(c => {
+    if (!c.collected && Math.hypot(mario.x + 16 - c.x, mario.y + 20 - c.y) < 24) {
+      c.collected = true;
+      mario.coins += 1;
+      mario.score += 100;
+      playSound('coin');
+      updateHUD();
+    }
+  });
+
+  // 爱心碰撞
+  hearts.forEach(h => {
+    if (!h.collected && Math.hypot(mario.x + 16 - h.x, mario.y + 20 - h.y) < 24) {
+      h.collected = true;
+      if (mario.lives < 5) mario.lives += 1;
+      mario.score += 200;
+      playSound('powerup');
+      updateHUD();
+    }
+  });
+
+  // 尖刺碰撞
+  spikes.forEach(s => {
+    if (mario.x + mario.w > s.x && mario.x < s.x + s.w && mario.y + mario.h > s.y) {
+      mario.takeDamage(1);
+      updateHUD();
+    }
+  });
+
+  // 板栗仔怪物碰撞
+  enemies.forEach(e => {
+    e.x += e.vx;
+    if (e.x < e.minX || e.x > e.maxX) e.vx *= -1;
+
+    if (mario.x + mario.w > e.x && mario.x < e.x + e.w && mario.y + mario.h > e.y && mario.y < e.y + e.h) {
+      if (mario.vy > 0 && mario.y + mario.h - mario.vy <= e.y + 12) {
+        mario.vy = mario.jumpPower * 0.75;
+        e.x = -999;
+        mario.score += 150;
+        playSound('coin');
+      } else {
+        mario.takeDamage(1);
+      }
+      updateHUD();
+    }
+  });
+
+  // 终点旗帜检测
+  if (mario.x + mario.w > goal.x && mario.x < goal.x + goal.w && mario.y + mario.h > goal.y) {
+    endGame(true);
+  }
+}
+
+function updateHUD() {
+  document.getElementById('lives-display').innerText = `❤️ x ${mario.lives}`;
+  document.getElementById('coins-display').innerText = `🪙 x ${mario.coins}`;
+  document.getElementById('math-display').innerText = `❓ 答对: ${solvedMathCount}/15`;
+  document.getElementById('score-display').innerText = `得分: ${mario.score}`;
+}
+
+// 画面绘制渲染
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  ctx.translate(-Math.floor(cameraX), 0);
+
+  // 背景天空云朵
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 25; i++) {
+    ctx.beginPath();
+    ctx.arc(i * 300 + 100, 80 + (i % 3) * 20, 28, 0, Math.PI * 2);
+    ctx.arc(i * 300 + 125, 70 + (i % 3) * 20, 36, 0, Math.PI * 2);
+    ctx.arc(i * 300 + 150, 80 + (i % 3) * 20, 28, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 经典马里奥地面与砖块
+  platforms.forEach(p => {
+    ctx.fillStyle = '#16a34a'; ctx.fillRect(p.x, p.y, p.w, 12);
+    ctx.fillStyle = '#b45309'; ctx.fillRect(p.x, p.y + 12, p.w, 400);
+    // 砖块纹理线
+    ctx.strokeStyle = '#78350f'; ctx.lineWidth = 2;
+    ctx.strokeRect(p.x, p.y + 12, p.w, 400);
+  });
+
+  // 马里奥问号宝箱 ❓
+  questionBlocks.forEach(b => {
+    if (!b.opened) {
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(b.x - 14, b.y - 14, 28, 28);
+      ctx.strokeStyle = '#ca8a04'; ctx.lineWidth = 2;
+      ctx.strokeRect(b.x - 14, b.y - 14, 28, 28);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 18px Arial';
+      ctx.fillText('?', b.x - 5, b.y + 6);
+    } else {
+      ctx.fillStyle = '#78716c'; // 已被踩过的灰色石块
+      ctx.fillRect(b.x - 14, b.y - 14, 28, 28);
+      ctx.strokeStyle = '#44403c'; ctx.lineWidth = 2;
+      ctx.strokeRect(b.x - 14, b.y - 14, 28, 28);
+    }
+  });
+
+  // 尖刺
+  spikes.forEach(s => {
+    ctx.fillStyle = '#64748b';
+    const count = Math.floor(s.w / 15);
+    for(let i=0; i<count; i++) {
+      ctx.beginPath();
+      ctx.moveTo(s.x + i * 15, s.y + s.h);
+      ctx.lineTo(s.x + i * 15 + 7.5, s.y);
+      ctx.lineTo(s.x + (i + 1) * 15, s.y + s.h);
+      ctx.fill();
+    }
+  });
+
+  // 金币 🪙
+  coins.forEach(c => {
+    if (!c.collected) {
+      ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(c.x, c.y, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ca8a04'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  });
+
+  // 爱心 ❤️
+  hearts.forEach(h => {
+    if (!h.collected) {
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(h.x - 4, h.y - 2, 6, 0, Math.PI * 2); ctx.arc(h.x + 4, h.y - 2, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(h.x - 9, h.y); ctx.lineTo(h.x, h.y + 9); ctx.lineTo(h.x + 9, h.y); ctx.fill();
+    }
+  });
+
+  // 板栗仔怪物 👾
+  enemies.forEach(e => {
+    if (e.x > -100) {
+      ctx.fillStyle = '#854d0e';
+      ctx.beginPath(); ctx.ellipse(e.x + 16, e.y + 18, 16, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(e.x + 10, e.y + 14, 3, 0, Math.PI * 2); ctx.arc(e.x + 22, e.y + 14, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath(); ctx.arc(e.x + 10, e.y + 14, 1.5, 0, Math.PI * 2); ctx.arc(e.x + 22, e.y + 14, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+
+  // 终点城堡与旗帜 🚩
+  ctx.fillStyle = '#64748b'; ctx.fillRect(goal.x, goal.y, 6, goal.h);
+  ctx.fillStyle = '#f43f5e';
+  ctx.beginPath(); ctx.moveTo(goal.x + 6, goal.y); ctx.lineTo(goal.x + 40, goal.y + 20); ctx.lineTo(goal.x + 6, goal.y + 40); ctx.fill();
+
+  mario.draw();
+
+  ctx.restore();
+}
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  gameState = 'PLAYING';
+  mario.reset();
+  initLevel();
+  updateHUD();
+  playSound('jump');
+}
+
+function restartGame() {
+  document.getElementById('gameover-screen').style.display = 'none';
+  document.getElementById('win-screen').style.display = 'none';
+  startGame();
+}
+
+function endGame(isWin) {
+  gameState = isWin ? 'WIN' : 'GAMEOVER';
+  if (isWin) {
+    playSound('win');
+    document.getElementById('win-score').innerText = `最终得分: ${mario.score} 分！\n数学题正确回答: ${solvedMathCount} / 15`;
+    document.getElementById('win-screen').style.display = 'flex';
+  } else {
+    document.getElementById('final-score').innerText = `最终得分: ${mario.score}\n数学题正确回答: ${solvedMathCount} / 15`;
+    document.getElementById('gameover-screen').style.display = 'flex';
+  }
+}
+
+loop();
+</script>
+</body>
+</html>
